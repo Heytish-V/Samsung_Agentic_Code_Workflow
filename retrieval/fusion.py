@@ -1,4 +1,3 @@
-python
 from typing import List, Tuple, Dict
 
 def reciprocal_rank_fusion(

@@ -1,4 +1,3 @@
-python
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from retrieval.dense_search import DenseRetriever

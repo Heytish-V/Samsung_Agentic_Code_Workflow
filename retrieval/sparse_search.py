@@ -1,4 +1,3 @@
-python
 import re
 from rank_bm25 import BM25Okapi
 from typing import List, Tuple

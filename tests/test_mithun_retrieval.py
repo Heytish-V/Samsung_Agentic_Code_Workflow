@@ -1,4 +1,3 @@
-python
 # tests/test_mithun_retrieval.py
 from parser.chunker import CodeChunk
 from retrieval.engine import RetrievalEngine
