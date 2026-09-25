@@ -1,6 +1,15 @@
 # tests/test_mithun_retrieval.py
+import pytest
 from parser.chunker import CodeChunk
-from retrieval.engine import RetrievalEngine
+
+try:
+    import faiss
+    import sentence_transformers
+    from retrieval.engine import RetrievalEngine
+    HAS_ML_DEPS = True
+except ImportError:
+    HAS_ML_DEPS = False
+    RetrievalEngine = None
 
 MOCK_CHUNKS = [
     CodeChunk(
@@ -28,6 +37,8 @@ MOCK_CHUNKS = [
 ]
 
 def test_mithun_engine():
+    if not HAS_ML_DEPS:
+        pytest.skip("Mithun ML dependencies (faiss, sentence-transformers) not installed in local environment")
     engine = RetrievalEngine()
     engine.build_indexes(MOCK_CHUNKS)
     

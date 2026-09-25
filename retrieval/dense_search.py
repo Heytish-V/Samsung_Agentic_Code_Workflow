@@ -1,10 +1,20 @@
-import faiss
-import numpy as np
-from sentence_transformers import SentenceTransformer
+try:
+    import faiss
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    faiss = None
+    np = None
+    SentenceTransformer = None
 from typing import List, Tuple
 
 class DenseRetriever:
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+        if SentenceTransformer is None or faiss is None:
+            raise ImportError(
+                "DenseRetriever requires 'faiss-cpu', 'numpy', and 'sentence-transformers'. "
+                "Install them with: pip install faiss-cpu sentence-transformers numpy"
+            )
         # Runs 100% on CPU with sub-15ms inference
         self.model = SentenceTransformer(model_name)
         self.index = None
