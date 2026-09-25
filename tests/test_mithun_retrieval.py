@@ -2,13 +2,15 @@
 import pytest
 from parser.chunker import CodeChunk
 
-try:
-    import faiss
-    import sentence_transformers
+import importlib.util
+
+HAS_FAISS = importlib.util.find_spec("faiss") is not None
+HAS_SENTENCE_TRANSFORMERS = importlib.util.find_spec("sentence_transformers") is not None
+HAS_ML_DEPS = HAS_FAISS and HAS_SENTENCE_TRANSFORMERS
+
+if HAS_ML_DEPS:
     from retrieval.engine import RetrievalEngine
-    HAS_ML_DEPS = True
-except ImportError:
-    HAS_ML_DEPS = False
+else:
     RetrievalEngine = None
 
 MOCK_CHUNKS = [

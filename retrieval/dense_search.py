@@ -1,7 +1,7 @@
 try:
-    import faiss
-    import numpy as np
-    from sentence_transformers import SentenceTransformer
+    import faiss  # type: ignore
+    import numpy as np  # type: ignore
+    from sentence_transformers import SentenceTransformer  # type: ignore
 except ImportError:
     faiss = None
     np = None
