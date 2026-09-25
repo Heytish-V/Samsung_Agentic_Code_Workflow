@@ -1,5 +1,8 @@
 import re
-from rank_bm25 import BM25Okapi
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
 from typing import List, Tuple
 
 class SparseRetriever:

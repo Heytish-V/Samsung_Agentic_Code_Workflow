@@ -35,7 +35,9 @@ class PipelineWiring:
         all_chunks: List[CodeChunk] = []
         dna_store: Dict[str, Any] = {}
 
-        for root, _dirs, files in os.walk(repo_dir):
+        EXCLUDE_DIRS = {".venv", "venv", ".git", "__pycache__", ".pytest_cache", "node_modules"}
+        for root, dirs, files in os.walk(repo_dir):
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
             for file in files:
                 if not file.endswith(".py"):
                     continue
@@ -86,17 +88,29 @@ class PipelineWiring:
             if hasattr(retrieval_engine, "build_indexes"):
                 retrieval_engine.build_indexes(all_chunks)
         else:
-            # Local mock fallback — returns chunks ranked by insertion order
-            class DefaultRetrieval:
-                def __init__(self):
-                    self._chunks = all_chunks
+            from retrieval import RetrievalEngine
+            retrieval_engine = None
+            if RetrievalEngine is not None:
+                try:
+                    engine_instance = RetrievalEngine()
+                    if hasattr(engine_instance, "build_indexes"):
+                        engine_instance.build_indexes(all_chunks)
+                    retrieval_engine = engine_instance
+                except Exception:
+                    retrieval_engine = None
 
-                def retrieve(self, query: str, top_k: int = 10):
-                    return [
-                        (c.chunk_id, 0.9) for c in self._chunks[:top_k]
-                    ]
+            if retrieval_engine is None:
+                # Local fallback — returns chunks ranked by insertion order
+                class DefaultRetrieval:
+                    def __init__(self):
+                        self._chunks = all_chunks
 
-            retrieval_engine = DefaultRetrieval()
+                    def retrieve(self, query: str, top_k: int = 10):
+                        return [
+                            (c.chunk_id, 0.9) for c in self._chunks[:top_k]
+                        ]
+
+                retrieval_engine = DefaultRetrieval()
 
         controller = AgenticController(retrieval_engine, dna_store, graph)
         return controller, graph, dna_store
