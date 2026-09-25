@@ -1,6 +1,6 @@
 import re
 try:
-    from rank_bm25 import BM25Okapi
+    from rank_bm25 import BM25Okapi  # type: ignore
 except ImportError:
     BM25Okapi = None
 from typing import List, Tuple
