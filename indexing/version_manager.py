@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-from typing import Dict, List
+from typing import Any, Dict, List, Set, Tuple
 from parser.chunk_id import normalize_file_path
 
 
@@ -118,3 +118,67 @@ class VersionManager:
             elif action == "D":
                 if norm_path not in result["deleted"]:
                     result["deleted"].append(norm_path)
+
+    def apply_diff_to_index(
+        self,
+        diff_status: Dict[str, List[str]],
+        chunker: Any,
+        existing_chunks: List[Any],
+        dna_store: Dict[str, Any],
+    ) -> Tuple[List[Any], Dict[str, Any], Dict[str, Any]]:
+        """Apply git diff changes incrementally to existing chunks and dna_store.
+
+        Args:
+            diff_status: Output from get_diff_status (added, modified, deleted).
+            chunker: SemanticChunker instance with chunk_file method.
+            existing_chunks: List of current CodeChunk objects.
+            dna_store: Current chunk_id -> CodeDNA dictionary.
+
+        Returns:
+            Tuple of (updated_chunks, updated_dna_store, summary_dict)
+        """
+        deleted_files = {normalize_file_path(f) for f in diff_status.get("deleted", [])}
+        modified_files = {normalize_file_path(f) for f in diff_status.get("modified", [])}
+        added_files = {normalize_file_path(f) for f in diff_status.get("added", [])}
+
+        files_to_purge = deleted_files | modified_files
+
+        # Retain chunks from unaffected files
+        retained_chunks = [
+            c for c in existing_chunks
+            if normalize_file_path(getattr(c, "file_path", "")) not in files_to_purge
+        ]
+
+        # Purge deleted/modified entries from dna_store
+        purged_ids = [
+            cid for cid, dna in list(dna_store.items())
+            if normalize_file_path(getattr(dna, "file", "")) in files_to_purge
+        ]
+        for cid in purged_ids:
+            dna_store.pop(cid, None)
+
+        # Reprocess added and modified files
+        new_chunks: List[Any] = []
+        files_to_reprocess = modified_files | added_files
+        for rel_file in files_to_reprocess:
+            full_path = os.path.join(self.repo_path, rel_file)
+            if not os.path.exists(full_path):
+                continue
+            try:
+                with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                    code_content = f.read()
+                file_chunks = chunker.chunk_file(rel_file, code_content)
+                for chunk in file_chunks:
+                    new_chunks.append(chunk)
+                    if hasattr(chunk, "code_dna") and chunk.code_dna:
+                        dna_store[chunk.chunk_id] = chunk.code_dna
+            except Exception:
+                pass
+
+        all_updated_chunks = retained_chunks + new_chunks
+        summary = {
+            "purged_chunk_ids": purged_ids,
+            "added_chunk_ids": [c.chunk_id for c in new_chunks],
+            "total_chunks": len(all_updated_chunks),
+        }
+        return all_updated_chunks, dna_store, summary

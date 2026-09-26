@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HEYTISH Agent — 4-Step Bounded State Machine",
+    "subtitle": "SEARCH → READ → EXPAND → RERANK (hard-capped at 4 iterations, <50ms CPU)",
+    "output": "docs/diagrams/workflow.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "main-path",
+        "label": "Happy Path: Query to Results",
+        "focus": ["search", "read", "expand", "rerank", "results"],
+        "note": "Follow the bounded 4-step pipeline from query to ranked results with trace."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "input", "label": "Input" },
+    { "id": "agent", "label": "Agent Controller (HEYTISH)" },
+    { "id": "retrieval", "label": "Retrieval (MITHUN)" },
+    { "id": "graph", "label": "Call Graph" },
+    { "id": "output", "label": "Output" }
+  ],
+  
+  "groups": [],
+  "mainPath": ["query", "search", "read", "expand", "rerank", "results"],
+"nodes": [
+    { "id": "query", "lane": "input", "col": 0, "type": "external", "label": "User Query", "sublabel": "string", "width": 120 },
+    { "id": "search", "lane": "retrieval", "col": 1, "type": "backend", "label": "SEARCH", "sublabel": "retrieve(top_k=10)", "tag": "RRF fusion", "width": 140 },
+    { "id": "read", "lane": "agent", "col": 2, "type": "backend", "label": "READ", "sublabel": "tools.read(seed_id)", "tag": "CodeDNA lookup", "width": 140 },
+    { "id": "expand", "lane": "agent", "col": 3, "type": "backend", "label": "EXPAND", "sublabel": "tools.expand(seed_id)", "tag": "call-graph neighbors", "width": 150 },
+    { "id": "rerank", "lane": "agent", "col": 4, "type": "backend", "label": "RERANK", "sublabel": "tools.rerank(query, ids, seed)", "tag": "sem+BM25+sym+graph", "width": 180 },
+    { "id": "results", "lane": "output", "col": 5, "type": "frontend", "label": "Results", "sublabel": "top-5 + trace + latency", "width": 150 },
+    { "id": "trace", "lane": "graph", "col": 5, "type": "database", "label": "Agent Trace", "sublabel": "4-step reasoning log", "width": 140 }
+  ],
+  "edges": [
+    { "id": "query_search", "from": "query", "to": "search", "label": "query", "variant": "emphasis" },
+    { "id": "search_read", "from": "search", "to": "read", "label": "candidates[] + seed_id", "variant": "emphasis" },
+    { "id": "read_expand", "from": "read", "to": "expand", "label": "seed_id", "variant": "emphasis" },
+    { "id": "expand_rerank", "from": "expand", "to": "rerank", "label": "neighbor IDs", "variant": "default" },
+    { "id": "search_rerank", "from": "search", "to": "rerank", "label": "candidate IDs", "variant": "default" },
+    { "id": "rerank_results", "from": "rerank", "to": "results", "label": "ranked top-5", "variant": "emphasis" },
+    { "id": "rerank_trace", "from": "rerank", "to": "trace", "label": "agent_trace[]", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bounded 4-Step Contract",
+      "items": [
+        "Step 1 SEARCH: Mithun's hybrid RRF returns top-10 candidates",
+        "Step 2 READ: Inspect CodeDNA of seed_id (top candidate)",
+        "Step 3 EXPAND: Follow call-graph edges for ≤5 internal neighbors",
+        "Step 4 RERANK: ExplainableReranker scores all candidates with seed anchor"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Deterministic Guarantees",
+      "items": [
+        "Hard-capped at 4 discrete steps — no loops, no recursion",
+        "Sub-50ms CPU runtime (measured in AgenticController.run())",
+        "Graceful degradation: uniform fallback scores if rerank fails",
+        "Rich agent_trace[] emitted for explainability"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Source Files",
+      "items": [
+        "agent/controller.py — AgenticController.run() (lines 45-198)",
+        "agent/tools.py — AgentTools: search(), read(), expand(), rerank()",
+        "graph/call_graph.py — build_call_graph() from CodeDNA calls",
+        "retrieval/engine.py — RetrievalEngine.retrieve() + rerank_candidates()",
+        "retrieval/reranker.py — ExplainableReranker.score_candidate()"
+      ]
+    }
+  ]
+}

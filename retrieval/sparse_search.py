@@ -14,7 +14,14 @@ class SparseRetriever:
         # Split camelCase: 'verifyToken' -> 'verify Token'
         s1 = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', text)
         # Extract alphanumeric tokens
-        return re.findall(r'[a-zA-Z0-9]+', s1.lower())
+        tokens = re.findall(r'[a-zA-Z0-9]+', s1.lower())
+        # Preserve compound snake_case identifiers (e.g. 'verify_token')
+        compounds = re.findall(r'[a-zA-Z0-9_]{3,}', text.lower())
+        for comp in compounds:
+            cleaned = comp.strip('_')
+            if '_' in cleaned and cleaned not in tokens:
+                tokens.append(cleaned)
+        return tokens
 
     def build_index(self, chunks: list):
         self.chunk_ids = [c.chunk_id for c in chunks]
@@ -26,7 +33,11 @@ class SparseRetriever:
         self.bm25 = BM25Okapi(corpus)
 
     def search(self, query: str, top_k: int = 30) -> List[Tuple[str, float]]:
+        if not self.bm25 or not self.chunk_ids:
+            return []
         q_tokens = self.tokenize(query)
+        if not q_tokens:
+            return []
         raw_scores = self.bm25.get_scores(q_tokens)
         top_indices = sorted(range(len(raw_scores)), key=lambda i: raw_scores[i], reverse=True)[:top_k]
         

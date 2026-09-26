@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Agentic Code Intelligence — End-to-End Data Pipeline",
+    "subtitle": "Python files → AST Chunks → CodeDNA → FAISS/BM25 → RRF → Rerank → Agent Trace",
+    "output": "docs/diagrams/dataflow.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "viewBox": [1400, 700],
+    "views": [
+      {
+        "id": "indexing",
+        "label": "Offline Indexing",
+        "focus": ["source", "ast_parser", "chunker", "code_dna", "call_graph", "dense_idx", "sparse_idx"],
+        "note": "Parse source files → chunk AST → extract CodeDNA → build Call Graph & FAISS/BM25 indexes."
+      },
+      {
+        "id": "query-time",
+        "label": "Online Query & Retrieval",
+        "focus": ["query", "dense_search", "sparse_search", "fusion", "reranker", "agent", "results", "trace"],
+        "note": "Query → dual dense/sparse search → RRF fusion → explainable rerank → agent state machine → results."
+      },
+      {
+        "id": "e2e",
+        "label": "Full System Pipeline",
+        "focus": ["source", "chunker", "dense_idx", "query", "dense_search", "fusion", "reranker", "agent", "results"],
+        "note": "Complete data journey from raw codebase to ranked, structurally verified results."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Parse & Chunk" },
+    { "label": "DNA & Graph" },
+    { "label": "Index Build" },
+    { "label": "Search & Fusion" },
+    { "label": "Rerank & Agent" }
+  ],
+  "nodes": [
+    { "id": "source", "type": "external", "label": "Python Source", "sublabel": ".py files", "stage": 0, "row": 0, "width": 140 },
+    { "id": "ast_parser", "type": "backend", "label": "AST Parser", "sublabel": "parser/ast_parser.py", "stage": 0, "row": 1, "width": 145 },
+    { "id": "chunker", "type": "backend", "label": "Semantic Chunker", "sublabel": "parser/chunker.py → CodeChunk[]", "stage": 0, "row": 2, "width": 150 },
+
+    { "id": "code_dna", "type": "database", "label": "CodeDNA Store", "sublabel": "indexing/code_dna.py", "stage": 1, "row": 0, "width": 145 },
+    { "id": "call_graph", "type": "messagebus", "label": "Call Graph", "sublabel": "graph/call_graph.py", "stage": 1, "row": 1, "width": 145 },
+
+    { "id": "dense_idx", "type": "database", "label": "FAISS Index", "sublabel": "BGE-small dense vectors", "stage": 2, "row": 0, "width": 145 },
+    { "id": "sparse_idx", "type": "database", "label": "BM25 Index", "sublabel": "rank-bm25 tokens", "stage": 2, "row": 1, "width": 145 },
+
+    { "id": "query", "type": "external", "label": "User Query", "sublabel": "natural language string", "stage": 3, "row": 0, "width": 140 },
+    { "id": "dense_search", "type": "backend", "label": "Dense Search", "sublabel": "retrieval/dense_search.py", "stage": 3, "row": 1, "width": 145 },
+    { "id": "sparse_search", "type": "backend", "label": "Sparse Search", "sublabel": "retrieval/sparse_search.py", "stage": 3, "row": 2, "width": 145 },
+    { "id": "fusion", "type": "backend", "label": "RRF Fusion", "sublabel": "reciprocal_rank_fusion(k=60)", "stage": 3, "row": 3, "width": 150 },
+
+    { "id": "reranker", "type": "backend", "label": "Explainable Reranker", "sublabel": "sem + bm25 + sym + graph", "stage": 4, "row": 0, "width": 155 },
+    { "id": "agent", "type": "backend", "label": "Agent Controller", "sublabel": "SEARCH→READ→EXPAND→RERANK", "stage": 4, "row": 1, "width": 160 },
+    { "id": "results", "type": "frontend", "label": "Search Results", "sublabel": "top-5 ranked code snippets", "stage": 4, "row": 2, "width": 150 },
+    { "id": "trace", "type": "database", "label": "Agent Trace", "sublabel": "4-step reasoning log", "stage": 4, "row": 3, "width": 145 }
+  ],
+  "flows": [
+    { "from": "source", "to": "ast_parser", "label": "read", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "from": "ast_parser", "to": "chunker", "label": "AST tree", "variant": "default", "fromSide": "bottom", "toSide": "top" },
+    { "from": "chunker", "to": "code_dna", "label": "build_code_dna()", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [230, 210] },
+    { "from": "code_dna", "to": "call_graph", "label": "calls[]", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "from": "chunker", "to": "dense_idx", "label": "embed + index", "variant": "default", "fromSide": "right", "toSide": "left", "channelX": -200, "labelAt": [420, 260] },
+    { "from": "chunker", "to": "sparse_idx", "label": "tokenize + index", "variant": "default", "fromSide": "right", "toSide": "left", "channelX": -200, "labelAt": [420, 340] },
+    { "from": "query", "to": "dense_search", "label": "embed query", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [910, 150] },
+    { "from": "query", "to": "sparse_search", "label": "tokenize query", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [910, 220] },
+    { "from": "dense_idx", "to": "dense_search", "label": "vector search", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [760, 160] },
+    { "from": "sparse_idx", "to": "sparse_search", "label": "lexical search", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [760, 280] },
+    { "from": "dense_search", "to": "fusion", "label": "dense scores", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [980, 290] },
+    { "from": "sparse_search", "to": "fusion", "label": "sparse scores", "variant": "default", "fromSide": "right", "toSide": "left", "labelAt": [980, 360] },
+    { "from": "fusion", "to": "reranker", "label": "top-k candidates", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [1080, 340] },
+    { "from": "code_dna", "to": "reranker", "label": "symbol & signature", "variant": "default", "fromSide": "right", "toSide": "left", "channelX": -150, "labelAt": [620, 60] },
+    { "from": "call_graph", "to": "reranker", "label": "graph neighbors", "variant": "dashed", "fromSide": "right", "toSide": "left", "channelX": 150, "labelAt": [620, 110] },
+    { "from": "reranker", "to": "agent", "label": "reranked scores", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "from": "agent", "to": "results", "label": "ranked code", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [1280, 330] },
+    { "from": "agent", "to": "trace", "label": "step trace[]", "variant": "dashed", "fromSide": "right", "toSide": "left", "labelAt": [1280, 420] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Offline Indexing (NIVED + MITHUN)",
+      "items": [
+        "parser/ast_parser.py: TreeSitterParser.parse() → extract imports, calls, params, docstrings",
+        "parser/chunker.py: SemanticChunker.chunk_file() → CodeChunk[] along function/class boundaries",
+        "indexing/code_dna.py: build_code_dna() → CodeDNA{symbol, calls, imports, params, signature}",
+        "graph/call_graph.py: build_call_graph() → NetworkX DiGraph resolved with import disambiguation",
+        "retrieval/dense_search.py: DenseRetriever.build_index() → FAISS (BGE-small-en-v1.5)",
+        "retrieval/sparse_search.py: SparseRetriever.build_index() → BM25 (rank-bm25)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Online Query Pipeline (MITHUN + HEYTISH)",
+      "items": [
+        "retrieval/engine.py: retrieve() → dual search → reciprocal_rank_fusion(k=60) → RetrievalCandidate[]",
+        "retrieval/reranker.py: ExplainableReranker.score_candidate() → {semantic, bm25, symbol, graph, final}",
+        "agent/controller.py: AgenticController.run() → SEARCH/READ/EXPAND/RERANK (bounded ≤4 steps)",
+        "agent/tools.py: AgentTools wraps retrieval + graph + DNA for 4 tool calls"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Key Data Structures & Outputs",
+      "items": [
+        "CodeChunk: chunk_id, file_path, symbol_name, node_type, start/end_line, code, docstring, code_dna",
+        "CodeDNA: symbol, file, start/end_line, functions_called[], imports[], parameters[], signature",
+        "RetrievalCandidate: chunk_id, rrf_score",
+        "RerankedCandidate: chunk_id, final_score, score_breakdown{semantic, bm25, symbol, graph}, why_matched",
+        "SearchResponse: query, results[top-5], agent_trace[], latency_ms, total_iterations"
+      ]
+    }
+  ]
+}
