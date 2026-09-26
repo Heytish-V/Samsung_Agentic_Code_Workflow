@@ -1,13 +1,17 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from backend.schemas import (
     SearchRequest,
     SearchResponse,
     StructuralRequest,
     StructuralResponse,
+    SubgraphResponse,
+    GraphNode,
+    GraphEdge,
 )
 
 import pipeline_wiring
@@ -15,7 +19,7 @@ import pipeline_wiring
 
 app = FastAPI(
     title="Samsung PRISM Agentic Code Intelligence",
-    version="1.0",
+    version="2.0",
 )
 
 
@@ -30,6 +34,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------
+# ROOT ROUTE
+# ---------------------------------------------------------
+
+@app.get("/")
+def root():
+    """Redirect root to Swagger API documentation."""
+    return RedirectResponse(url="/docs")
 
 
 # ---------------------------------------------------------
@@ -53,26 +67,20 @@ def initialize_pipeline():
     """
     Build the real Samsung PRISM pipeline.
 
-    Repository
-        ↓
-    Parser / Chunker
-        ↓
-    CodeDNA
-        ↓
-    Call Graph
-        ↓
-    Dense + BM25 Retrieval
-        ↓
-    RRF
-        ↓
-    Reranker
-        ↓
-    AgenticController
+    Indexes the demo_repo/ directory for a realistic demonstration,
+    falling back to the project root if demo_repo doesn't exist.
     """
 
-    repo_dir = os.path.abspath(
+    project_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..")
     )
+
+    # Prefer demo_repo for realistic queries; fall back to project root
+    demo_repo_dir = os.path.join(project_root, "demo_repo")
+    if os.path.isdir(demo_repo_dir):
+        repo_dir = demo_repo_dir
+    else:
+        repo_dir = project_root
 
     print("=" * 60)
     print("INITIALIZING SAMSUNG PRISM REAL PIPELINE")
@@ -121,6 +129,15 @@ def health():
         "mock_mode": STATE["mock_mode"],
         "pipeline_ready": STATE["agent"] is not None,
         "pipeline_error": STATE["pipeline_error"],
+        "chunks_indexed": len(STATE["dna_store"]),
+        "graph_nodes": (
+            STATE["graph"].number_of_nodes()
+            if STATE["graph"] is not None else 0
+        ),
+        "graph_edges": (
+            STATE["graph"].number_of_edges()
+            if STATE["graph"] is not None else 0
+        ),
     }
 
 
@@ -190,6 +207,83 @@ def structural_query(req: StructuralRequest):
             f"before {req.func_after}"
         ),
         "matches": matches,
+    }
+
+
+# ---------------------------------------------------------
+# CALL GRAPH SUBGRAPH API (for visualization)
+# ---------------------------------------------------------
+
+@app.get(
+    "/api/graph/subgraph",
+    response_model=SubgraphResponse,
+)
+def graph_subgraph(
+    chunk_id: str = Query(..., description="Center node chunk_id"),
+    depth: int = Query(2, ge=1, le=3, description="Traversal depth"),
+):
+    """Return a subgraph neighborhood for call graph visualization."""
+
+    graph = STATE["graph"]
+
+    if graph is None or chunk_id not in graph:
+        return {
+            "center_id": chunk_id,
+            "nodes": [],
+            "edges": [],
+        }
+
+    # BFS to collect neighborhood
+    visited = set()
+    queue = [(chunk_id, 0)]
+    visited.add(chunk_id)
+
+    while queue:
+        current, d = queue.pop(0)
+        if d >= depth:
+            continue
+
+        # Successors (callees)
+        for succ in graph.successors(current):
+            if succ not in visited:
+                visited.add(succ)
+                queue.append((succ, d + 1))
+
+        # Predecessors (callers)
+        for pred in graph.predecessors(current):
+            if pred not in visited:
+                visited.add(pred)
+                queue.append((pred, d + 1))
+
+    # Build node list
+    nodes = []
+    for nid in visited:
+        nd = graph.nodes.get(nid, {})
+        is_ext = nid.startswith("external::") or nd.get("is_external", False)
+        nodes.append(GraphNode(
+            id=nid,
+            symbol=nd.get("symbol", nid.split("::")[-1]),
+            file=nd.get("file", "external"),
+            is_external=is_ext,
+            node_type="external" if is_ext else "internal",
+        ))
+
+    # Build edge list (only edges within visited set)
+    edges = []
+    for nid in visited:
+        for succ in graph.successors(nid):
+            if succ in visited:
+                edge_data = graph.edges.get((nid, succ), {})
+                edges.append(GraphEdge(
+                    source=nid,
+                    target=succ,
+                    call_type=edge_data.get("call_type", "internal"),
+                ))
+
+    return {
+        "center_id": chunk_id,
+        "nodes": nodes,
+        "edges": edges,
     }
 
 

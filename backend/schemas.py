@@ -18,6 +18,13 @@ class ScoreBreakdown(BaseModel):
     graph: float
 
 
+class EvidenceFactor(BaseModel):
+    """Structured evidence for a single scoring factor."""
+    factor: str
+    score: float
+    description: str
+
+
 class SearchResultItem(BaseModel):
     rank: int
     chunk_id: str
@@ -29,6 +36,8 @@ class SearchResultItem(BaseModel):
     final_score: float
     score_breakdown: ScoreBreakdown
     why_matched: str
+    evidence: List[EvidenceFactor] = []
+    confidence_level: str = "MEDIUM"
 
 
 class AgentTraceStep(BaseModel):
@@ -64,3 +73,26 @@ class StructuralMatch(BaseModel):
 class StructuralResponse(BaseModel):
     predicate: str
     matches: List[StructuralMatch]
+
+
+class GraphNode(BaseModel):
+    """Node in the call graph subgraph."""
+    id: str
+    symbol: str
+    file: str
+    is_external: bool = False
+    node_type: str = "internal"
+
+
+class GraphEdge(BaseModel):
+    """Edge in the call graph subgraph."""
+    source: str
+    target: str
+    call_type: str = "internal"
+
+
+class SubgraphResponse(BaseModel):
+    """Call graph neighborhood for visualization."""
+    center_id: str
+    nodes: List[GraphNode]
+    edges: List[GraphEdge]
