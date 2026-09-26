@@ -62,3 +62,17 @@ def test_code_dna_json_serializable() -> None:
     dna_dict = asdict(dna)
     json_str = json.dumps(dna_dict)
     assert isinstance(json_str, str)
+
+
+def test_code_dna_to_dict() -> None:
+    code = "def sample(): pass"
+    chunker = SemanticChunker()
+    chunks = chunker.chunk_file("sample.py", code)
+    dna = chunks[0].code_dna
+    assert dna is not None
+    assert hasattr(dna, "to_dict")
+    d = dna.to_dict()
+    assert isinstance(d, dict)
+    assert d["chunk_id"] == "sample.py::global::sample"
+    assert d["symbol"] == "sample"
+    assert "content_hash" in d

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Agentic Code Intelligence — Data Pipeline",
+    "subtitle": "Python files → AST Chunks → CodeDNA → FAISS/BM25 → RRF → Rerank → Agent Trace",
+    "output": "docs/diagrams/dataflow.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "viewBox": [1100, 700],
+    "views": [
+      {
+        "id": "indexing",
+        "label": "Offline Indexing",
+        "focus": ["source", "ast_parser", "chunker", "code_dna", "dense_idx", "sparse_idx"],
+        "note": "Parse → chunk → extract DNA → build FAISS + BM25 indexes."
+      },
+      {
+        "id": "query-time",
+        "label": "Online Query",
+        "focus": ["query", "dense_search", "sparse_search", "fusion", "reranker", "trace"],
+        "note": "Query → dual search → RRF fusion → explainable rerank → agent pipeline."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Parse & Chunk" },
+    { "label": "DNA & Graph" },
+    { "label": "Index Build" },
+    { "label": "Search & Fusion" },
+    { "label": "Rerank & Agent" }
+  ],
+  "nodes": [
+    { "id": "source", "type": "external", "label": "Python Source", "sublabel": ".py files", "stage": 0, "row": 0, "width": 140 },
+    { "id": "ast_parser", "type": "backend", "label": "AST Parser", "sublabel": "parser/ast_parser.py", "stage": 0, "row": 1, "width": 150 },
+    { "id": "chunker", "type": "backend", "label": "Semantic Chunker", "sublabel": "parser/chunker.py", "stage": 0, "row": 2, "width": 160 },
+    { "id": "chunks", "type": "database", "label": "CodeChunk[]", "sublabel": "id, symbol, code, DNA", "stage": 0, "row": 3, "width": 160 },
+    { "id": "code_dna", "type": "database", "label": "CodeDNA", "sublabel": "indexing/code_dna.py", "stage": 1, "row": 0, "width": 140 },
+    { "id": "call_graph", "type": "messagebus", "label": "Call Graph", "sublabel": "graph/call_graph.py", "stage": 1, "row": 1, "width": 150 },
+    { "id": "dense_idx", "type": "database", "label": "FAISS Index", "sublabel": "retrieval/dense_search.py", "stage": 2, "row": 0, "width": 140 },
+    { "id": "sparse_idx", "type": "database", "label": "BM25 Index", "sublabel": "retrieval/sparse_search.py", "stage": 2, "row": 1, "width": 140 },
+    { "id": "query", "type": "external", "label": "User Query", "sublabel": "natural language", "stage": 3, "row": 0, "width": 130 },
+    { "id": "dense_search", "type": "backend", "label": "Dense Search", "sublabel": "BGE-small + FAISS", "stage": 3, "row": 1, "width": 150 },
+    { "id": "sparse_search", "type": "backend", "label": "Sparse Search", "sublabel": "rank-bm25", "stage": 3, "row": 2, "width": 140 },
+    { "id": "fusion", "type": "backend", "label": "RRF Fusion", "sublabel": "retrieval/fusion.py (k=60)", "stage": 4, "row": 0, "width": 150 },
+    { "id": "reranker", "type": "backend", "label": "Reranker", "sublabel": "retrieval/reranker.py", "stage": 4, "row": 1, "width": 140 },
+    { "id": "agent", "type": "backend", "label": "Agent Pipeline", "sublabel": "agent/controller.py", "stage": 4, "row": 2, "width": 160 },
+    { "id": "trace", "type": "database", "label": "Agent Trace", "sublabel": "4-step reasoning", "stage": 4, "row": 3, "width": 140 }
+  ],
+  "flows": [
+    {"from": "source", "to": "ast_parser", "label": "read", "variant": "emphasis"},
+    {"from": "ast_parser", "to": "chunker", "label": "AST", "variant": "default"},
+    {"from": "chunker", "to": "chunks", "label": "CodeChunk[]", "variant": "emphasis"},
+    {"from": "chunks", "to": "code_dna", "label": "build_code_dna()", "variant": "emphasis"},
+    {"from": "code_dna", "to": "call_graph", "label": "calls[]", "variant": "emphasis"},
+    {"from": "chunks", "to": "dense_idx", "label": "embed + index", "variant": "default"},
+    {"from": "chunks", "to": "sparse_idx", "label": "tokenize + index", "variant": "default"},
+    {"from": "query", "to": "dense_search", "label": "embed query", "variant": "emphasis"},
+    {"from": "query", "to": "sparse_search", "label": "tokenize query", "variant": "default"},
+    {"from": "dense_search", "to": "fusion", "label": "dense scores", "variant": "default"},
+    {"from": "sparse_search", "to": "fusion", "label": "sparse scores", "variant": "default"},
+    {"from": "fusion", "to": "reranker", "label": "RRF top-k", "variant": "emphasis"},
+    {"from": "code_dna", "to": "reranker", "label": "DNA for scoring", "variant": "default"},
+    {"from": "call_graph", "to": "reranker", "label": "graph score", "variant": "dashed"},
+    {"from": "reranker", "to": "agent", "label": "reranked top-5", "variant": "emphasis"},
+    {"from": "agent", "to": "trace", "label": "trace[]", "variant": "dashed"}
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Offline Indexing (NIVED + MITHUN)",
+      "items": [
+        "parser/ast_parser.py: TreeSitterParser.parse() → extract imports, calls, params, docstrings",
+        "parser/chunker.py: SemanticChunker.chunk_file() → CodeChunk[] (class/func boundaries)",
+        "indexing/code_dna.py: build_code_dna() → CodeDNA{symbol, calls, imports, params, signature}",
+        "retrieval/dense_search.py: DenseRetriever.build_index() → FAISS (BGE-small-en-v1.5)",
+        "retrieval/sparse_search.py: SparseRetriever.build_index() → BM25 (rank-bm25)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Online Query Pipeline (MITHUN + HEYTISH)",
+      "items": [
+        "retrieval/engine.py: retrieve() → dual search → reciprocal_rank_fusion(k=60) → RetrievalCandidate[]",
+        "retrieval/reranker.py: ExplainableReranker.score_candidate() → {semantic, bm25, symbol, graph, final}",
+        "agent/controller.py: AgenticController.run() → SEARCH/READ/EXPAND/RERANK → SearchResponse",
+        "agent/tools.py: AgentTools wraps retrieval + graph + DNA for 4 tool calls"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Key Data Structures",
+      "items": [
+        "CodeChunk: chunk_id, file_path, symbol_name, node_type, start/end_line, code, docstring, code_dna",
+        "CodeDNA: symbol, file, start/end_line, functions_called[], imports[], parameters[], signature",
+        "RetrievalCandidate: chunk_id, rrf_score",
+        "Reranked: chunk_id, final_score, score_breakdown{semantic, bm25, symbol, graph}, why_matched"
+      ]
+    }
+  ]
+}

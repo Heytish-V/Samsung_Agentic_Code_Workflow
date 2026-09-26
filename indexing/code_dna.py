@@ -1,6 +1,6 @@
 """CodeDNA metadata contract and builder functions."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, asdict, field
 import hashlib
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +21,10 @@ class CodeDNA:
     functions_called: List[str]
     call_sequence_with_lines: List[Dict[str, Any]]
     content_hash: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert CodeDNA to a JSON-serializable dictionary."""
+        return asdict(self)
 
 
 def build_code_dna(

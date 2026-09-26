@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Samsung PRISM Agentic Code Intelligence — Current Repository",
+    "subtitle": "NIVED (Parser) → MITHUN (Retrieval) → HEYTISH (Agent) + Call Graph",
+    "output": "docs/diagrams/architecture.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "viewBox": [1200, 600],
+    "views": [
+      {
+        "id": "overview",
+        "label": "System Overview",
+        "focus": ["nived", "mithun", "heytish", "pipeline"],
+        "note": "Three committed modules wired by PipelineWiring."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "nived",
+      "type": "backend",
+      "label": "NIVED — Parser & AST",
+      "sublabel": "ast_parser, chunker, code_dna",
+      "tag": "Parser",
+      "pos": [60, 80],
+      "size": [320, 160]
+    },
+    {
+      "id": "mithun",
+      "type": "database",
+      "label": "MITHUN — Retrieval & ML",
+      "sublabel": "dense, sparse, fusion, reranker, engine",
+      "tag": "Retrieval",
+      "pos": [440, 80],
+      "size": [340, 180]
+    },
+    {
+      "id": "heytish",
+      "type": "backend",
+      "label": "HEYTISH — Agent & Graph",
+      "sublabel": "controller, tools, call_graph",
+      "tag": "Agent",
+      "pos": [840, 80],
+      "size": [300, 160]
+    },
+    {
+      "id": "pipeline",
+      "type": "backend",
+      "label": "Pipeline Wiring",
+      "sublabel": "pipeline_wiring.py",
+      "tag": "Integration",
+      "pos": [480, 320],
+      "size": [260, 100]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Committed Modules",
+      "wraps": ["nived", "mithun", "heytish", "pipeline"],
+      "pad": 40
+    }
+  ],
+  "connections": [
+    {"from": "nived", "to": "mithun", "label": "CodeChunk[] + CodeDNA", "variant": "emphasis", "labelAt": [380, 260]},
+    {"from": "mithun", "to": "heytish", "label": "retrieve/rerank", "variant": "emphasis", "labelAt": [780, 270]},
+    {"from": "pipeline", "to": "nived", "label": "scan_and_chunk()", "variant": "default", "labelAt": [180, 260]},
+    {"from": "pipeline", "to": "mithun", "label": "build_indexes()", "variant": "default", "labelAt": [540, 270]},
+    {"from": "pipeline", "to": "heytish", "label": "build graph + controller", "variant": "emphasis", "labelAt": [900, 270]}
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Three Modules (Committed)",
+      "items": [
+        "NIVED: Tree-sitter AST parsing, semantic chunking, CodeDNA extraction",
+        "MITHUN: FAISS dense + BM25 sparse + RRF fusion + explainable reranking",
+        "HEYTISH: Bounded 4-step agent (SEARCH→READ→EXPAND→RERANK) + NetworkX call graph"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "NOT PRESENT in This Checkout",
+      "items": [
+        "FastAPI backend — only referenced in pipeline_wiring.py comments",
+        "React/Streamlit/Monaco frontend — zero frontend files exist",
+        "MTEB/AppsRetrieval evaluation — only parser perf benchmark exists"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Data Flow",
+      "items": [
+        "Python files → AST → CodeChunk[] → CodeDNA → FAISS/BM25 indexes",
+        "Query → Dense+Sparse search → RRF fusion → RetrievalCandidate[]",
+        "Agent: SEARCH(top-k) → READ(seed) → EXPAND(call-graph) → RERANK(final)"
+      ]
+    }
+  ]
+}

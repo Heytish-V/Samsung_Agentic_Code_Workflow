@@ -47,11 +47,12 @@ def build_call_graph(dna_store: Dict[str, Any]) -> nx.DiGraph:
             if callee_symbol in symbol_table:
                 candidates = symbol_table[callee_symbol]
 
-                # Rule A: Disambiguate by same-file match
+                # Rule A: Disambiguate by same-file match (OS-normalized)
+                caller_norm = caller_file.replace("\\", "/").lstrip("./")
                 same_file_matches = [
                     cid
                     for cid in candidates
-                    if dna_store[cid].file == caller_file
+                    if dna_store[cid].file.replace("\\", "/").lstrip("./") == caller_norm
                 ]
                 if same_file_matches:
                     for target_id in same_file_matches:
@@ -59,14 +60,17 @@ def build_call_graph(dna_store: Dict[str, Any]) -> nx.DiGraph:
                     continue
 
                 # Rule B: Disambiguate by import statement matching
+                def _file_matches_import(file_str: str, imp_str: str) -> bool:
+                    norm = file_str.replace("\\", "/").lstrip("./").rstrip(".py")
+                    dot_path = norm.replace("/", ".")
+                    base_mod = norm.split("/")[-1]
+                    return dot_path in imp_str or base_mod in imp_str
+
                 imported_matches = [
                     cid
                     for cid in candidates
                     if any(
-                        dna_store[cid]
-                        .file.replace("/", ".")
-                        .rstrip(".py")
-                        in imp
+                        _file_matches_import(dna_store[cid].file, imp)
                         or callee_symbol in imp
                         for imp in caller_imports
                     )
